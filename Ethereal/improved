@@ -1,0 +1,306 @@
+
+import subprocess
+import shutil
+import sys
+from datetime import datetime
+import tkinter as tk
+import os
+from tkinter.filedialog import askopenfilename, asksaveasfilename
+from tkinter import colorchooser, messagebox # Import colorchooser and messagebox
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Global variables to store current font and color
+# These will be initialized in main based on the default text_edit font
+current_font_family = "Helvetica"
+current_font_size = 18
+current_font_color = "black"
+
+def run_improved():
+    """
+    Executes the 'improved.py' file located in D:/Workspace/Ethereal
+    using the same Python interpreter that runs this script.
+    """
+    file_path = r"D:/Workspace/Ethereal\improved"
+
+    # Check if the file exists first
+    if not os.path.exists(file_path):
+        print(f"⚠️ File not found: {file_path}")
+        messagebox.showerror("File Error", f"The improved.py file was not found at: {file_path}")
+        return
+
+    # Run the file as a separate Python process
+    try:
+        result = subprocess.run(
+            [sys.executable, file_path],  # Use current Python interpreter
+            capture_output=True,          # Capture stdout and stderr
+            text=True                     # Decode bytes to string
+        )
+
+        # Print the results
+        print("=== improved.py output ===")
+        print(result.stdout)
+
+        if result.stderr:
+            print("=== Errors ===")
+            print(result.stderr)
+            messagebox.showerror("Script Error", f"Errors occurred while running improved.py:\n{result.stderr}")
+        else:
+            messagebox.showinfo("Script Success", "improved.py ran successfully.")
+
+    except Exception as e:
+        print(f"❌ Failed to run improved.py: {e}")
+        messagebox.showerror("Execution Error", f"Failed to run improved.py: {e}")
+
+def new_tedit(code):
+    """
+    Removes ``` or ´´´ from the beginning and end of the string 'code'
+    and writes the cleaned code to 'improved.py'.
+    """
+    code = code.strip()  # Remove leading/trailing spaces or newlines
+
+    # Remove starting markers if present
+    if code.startswith("```") or code.startswith("´´´"):
+        code = code[3:]
+
+    # Remove ending markers if present
+    if code.endswith("```") or code.endswith("´´´"):
+        code = code[:-3]
+
+    # Strip again to clean any leftover whitespace/newlines after marker removal
+    code = code.strip()    
+
+    file_path = r"D:/Workspace/Ethereal\improved"
+    
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    # Write the new content to the file (overwriting everything)
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        #print(f"✅ 'improved.py' has been overwritten successfully at: {file_path}")
+        run_improved() # Run the newly updated script
+    except IOError as e:
+        print(f"❌ Failed to write to 'improved.py': {e}")
+        messagebox.showerror("File Write Error", f"Failed to write to improved.py: {e}")
+
+
+def copy_script_to_target():
+    # Define the target folder
+    target_folder = r"D:/Workspace/Ethereal"
+
+    # Get the full path of this script
+    current_file = os.path.abspath(sys.argv[0])
+
+    # Define the destination path for "improved.py"
+    destination = os.path.join(target_folder, "improved.py") # Ensure .py extension
+
+    # Create the target directory if it doesn't exist
+    os.makedirs(target_folder, exist_ok=True)
+
+    # Copy the file
+    try:
+        shutil.copy2(current_file, destination)
+        print(f"File copied to: {destination}")
+    except Exception as e:
+        print(f"❌ Failed to copy script to target: {e}")
+        messagebox.showerror("Copy Error", f"Failed to copy current script to {destination}: {e}")
+
+def ai_response(input_text):
+   
+    load_dotenv()
+    genai.configure(api_key=os.environ.get('GOOGLE_API_KEY')) # Explicitly pass API key
+    copy_script_to_target() # Ensure the target 'improved.py' is up-to-date
+
+    # Path to the "improved" file (assuming improved.py now)
+    file_path = r"D:/Workspace/Ethereal\improved.py" # Corrected path to include .py extension
+
+    # Check if the file exists before reading
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = file.read()
+                #print("=== Contents of improved.py ===")
+                #print(content)
+        except Exception as e:
+            print(f"❌ Failed to read improved.py: {e}")
+            messagebox.showerror("File Read Error", f"Failed to read improved.py: {e}")
+            return
+    else:
+        print(f"File not found: {file_path}")
+        messagebox.showerror("File Not Found", f"The improved.py file was not found at: {file_path}")
+        return
+
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+
+        prompt = content + "\n\nadd to the code and return full code and nothing else according to this request: " + input_text + "\n\n!IMPORTANT: dont add ´'´ or ``` to the response"   
+        response = model.generate_content(prompt)
+
+        # Check if response has text content
+        if response and response.text:
+            #print(response.text)
+            new_tedit(response.text) # Pass the AI's response to update the file
+        else:
+            print("❌ AI did not return any text content.")
+            messagebox.showwarning("AI Warning", "The AI did not return any text content.")
+    except Exception as e:
+        print(f"❌ Error during AI generation: {e}")
+        messagebox.showerror("AI Error", f"An error occurred during AI content generation: {e}")
+
+def open_file(window, text_edit):
+    filepath = askopenfilename(filetypes = [("Python Files", "*.py"), ("Text Files", "*.txt"), ("All Files", "*.*")])
+
+    if not filepath:
+        return
+    
+    text_edit.delete(1.0, tk.END) # Delete everything from first char to last in our current window
+    
+    try:
+        with open(filepath, "r", encoding="utf-8") as f: # Reads and inserts new content
+            content = f.read()
+            text_edit.insert(tk.END, content)
+        window.title(f"Open File : {filepath}")
+    except Exception as e:
+        messagebox.showerror("Open File Error", f"Failed to open file {filepath}: {e}")
+
+def save_file(window, text_edit):
+    filepath = asksaveasfilename(
+        defaultextension=".py", # Default to .py as this is a Python editor
+        filetypes = [("Python Files", "*.py"), ("Text Files", "*.txt"), ("All Files", "*.*")]
+    )
+    
+    if not filepath:
+        return
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            content = text_edit.get(1.0, tk.END)
+            f.write(content)
+        window.title(f"Open File: {filepath}")
+    except Exception as e:
+        messagebox.showerror("Save File Error", f"Failed to save file {filepath}: {e}")
+
+def get_input(window, ask_ai):
+    input_text = ask_ai.get("1.0",'end-1c')
+    if input_text.strip(): # Only call AI if there's actual input
+        ai_response(input_text)
+    else:
+        messagebox.showwarning("Empty Input", "Please enter a request for the AI.")
+
+# --- New functions for text formatting ---
+def open_format_dialog(text_edit):
+    """
+    Opens a new dialog window to allow users to change text size and color.
+    """
+    global current_font_family, current_font_size, current_font_color # Access global variables
+
+    format_window = tk.Toplevel()
+    format_window.title("Format Text")
+    format_window.transient(text_edit.winfo_toplevel()) # Make it transient to the main window
+    format_window.grab_set() # Make it modal
+
+    # --- Font Size ---
+    tk.Label(format_window, text="Font Size:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+    
+    font_size_var = tk.StringVar(value=str(current_font_size)) # Initialize with current size
+    
+    size_spinbox = tk.Spinbox(
+        format_window, from_=8, to_=72, increment=2,
+        textvariable=font_size_var, width=5
+    )
+    size_spinbox.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+    # --- Font Color ---
+    tk.Label(format_window, text="Font Color:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+    
+    # Variable to store the chosen color (hex string)
+    chosen_color_var = tk.StringVar(value=current_font_color)
+
+    # Label to display the chosen color
+    color_display_label = tk.Label(
+        format_window, text="    ", bg=chosen_color_var.get(),
+        relief="solid", bd=1
+    )
+    color_display_label.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+    def pick_color():
+        nonlocal chosen_color_var, color_display_label # Refer to variables in enclosing scope
+        color_code = colorchooser.askcolor(title="Choose color", initialcolor=chosen_color_var.get())
+        if color_code[1]: # color_code[1] is the hex string
+            chosen_color_var.set(color_code[1])
+            color_display_label.config(bg=chosen_color_var.get())
+
+    color_button = tk.Button(format_window, text="Select Color", command=pick_color)
+    color_button.grid(row=1, column=2, padx=5, pady=5, sticky="ew")
+
+    # --- Apply Button ---
+    def apply_format():
+        nonlocal text_edit # Refer to text_edit passed as argument
+        global current_font_size, current_font_color # Declare global to modify
+        try:
+            new_size = int(font_size_var.get())
+            new_color = chosen_color_var.get()
+
+            # Update global variables
+            current_font_size = new_size
+            current_font_color = new_color
+
+            # Construct the font tuple
+            font_tuple = (current_font_family, new_size)
+            
+            text_edit.config(font=font_tuple, fg=new_color)
+            format_window.destroy() # Close the format window after applying
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Please enter a valid number for font size.")
+
+    apply_button = tk.Button(format_window, text="Apply", command=apply_format)
+    apply_button.grid(row=2, column=0, columnspan=3, padx=5, pady=10, sticky="ew")
+
+    format_window.protocol("WM_DELETE_WINDOW", format_window.destroy) # Handle close button
+    format_window.wait_window() # Wait for the window to be closed before returning
+
+def main():
+    global current_font_family, current_font_size, current_font_color # Access global variables
+
+    window = tk.Tk()
+    window.title("Text Editor")
+    
+    # Set the size of text_edit components
+    window.rowconfigure(0, weight=3, minsize=200) # text_edit takes more space vertically
+    window.rowconfigure(1, weight=1, minsize=100) # ask_ai takes less space vertically
+    window.columnconfigure(1, weight=1, minsize=400) # text_edit and ask_ai take horizontal space
+
+    # Initialize text_edit with the global current_font_size and current_font_color
+    text_edit = tk.Text(window, font = (current_font_family, current_font_size), fg=current_font_color)
+    text_edit.grid(row = 0, column = 1, sticky="nsew", padx=5, pady=5)
+
+    # Text box for ai interaction
+    ask_ai = tk.Text(window, font = (current_font_family, 12)) # Reduced font size for AI input box
+    ask_ai.grid(row = 1, column = 1, padx=5, pady=5, sticky = "nsew")
+
+    # Creates frame that "stores" buttons
+    frame = tk.Frame(window, relief = tk.RAISED, bd = 2)
+    frame.grid(row = 0, column = 0, rowspan=2, sticky = "ns", padx=5, pady=5) # rowspan=2 for button frame
+
+    # Make buttons expand horizontally within the frame
+    frame.columnconfigure(0, weight=1) 
+
+    # Command refers to what function button has; lambda allows us to insert several arguments
+    save_button = tk.Button(frame, text = "Save", command = lambda: save_file(window, text_edit))
+    open_button = tk.Button(frame, text = "Open", command = lambda: open_file(window, text_edit))
+    ai_button = tk.Button(frame, text = "AI", command = lambda: get_input(window, ask_ai))
+    
+    # New button for text formatting
+    format_button = tk.Button(frame, text = "Format Text", command = lambda: open_format_dialog(text_edit))
+
+    save_button.grid(row = 0, column = 0, padx=5, pady=5, sticky = "ew")
+    open_button.grid(row = 1, column = 0, padx=5, pady=5, sticky = "ew")
+    ai_button.grid(row = 2, column = 0, padx=5, pady=5, sticky = "ew")
+    format_button.grid(row = 3, column = 0, padx=5, pady=5, sticky = "ew") # Grid the new button
+
+    window.mainloop()
+
+if __name__ == "__main__":
+    main()

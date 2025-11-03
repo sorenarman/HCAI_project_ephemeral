@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Gemini App",
+      "type": "python",
+      "request": "launch",
+      "program": "text_e copy.py",
+      "envFile": "${Ethereal}/.env"
+    }
+  ]
+}
